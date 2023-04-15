@@ -6,6 +6,7 @@
 #include <string.h>
 #include <locale>
 #include <codecvt>
+#include <fstream>
 
 #include "mono.h"
 
@@ -39,6 +40,7 @@ void DumpMono() {
 	}
 
 
+	std::ofstream output("monodump.txt");
 
 	std::vector<MonoAssembly*> assemblies;
 	mono::assembly_foreach.Get()((MonoFunc)push_assembly_to_vector, &assemblies);
@@ -54,7 +56,36 @@ void DumpMono() {
 		LOG(tdefcount);
 		for (int i = 0; i < tdefcount; i++)
 		{
-			auto c = mono::class_get.Get()(image, MONO_TOKEN_TYPE_DEF | (i + 1));
+			auto klass = mono::class_get.Get()(image, MONO_TOKEN_TYPE_DEF | (i + 1));
+			auto name = mono::class_get_name.Get()(klass);
+			auto ns = mono::class_get_namespace.Get()(klass);
+			std::cout << ns << "." << name << "\n";
+			output << "// " << ns << "." << name << "\n";
+			output << "class " << name << " {\n";
+
+			struct Field {
+				std::string type_name;
+				std::string field_name;
+				uint32_t offset;
+			};
+			std::vector<Field> fields;
+			void* iter = nullptr;
+			MonoClassField* field = nullptr;
+			do {
+				field = mono::class_get_fields.Get()(klass, &iter);
+				if (field) {
+					auto field_name = mono::field_get_name.Get()(field);
+					auto field_type = mono::field_get_type.Get()(field);
+					auto field_type_name = mono::type_get_name.Get()(field_type);
+					auto field_offset = mono::field_get_offset.Get()(field);
+					fields.push_back(Field{ field_type_name, field_name, field_offset });
+				}
+			} while (field);
+			std::sort(fields.begin(), fields.end(), [](Field a, Field b) { return a.offset < b.offset; });
+			for (auto& f : fields) {
+				output << "  " << f.type_name << " " << f.field_name << "; // Offset: 0x" << std::hex << f.offset << "\n";
+			}
+			output << "};\n\n";
 		}
 	}
 
@@ -62,6 +93,8 @@ void DumpMono() {
 		mono::thread_detach.Get()(monothread);
 		monothread = nullptr;
 	}
+
+	output.close();
 };
 
 
@@ -78,7 +111,6 @@ void InspectMono() {
 		std::cout << "Mono DLL not found" << std::endl;
 		return;
 	}
-
 
 	if (!mono::thread_attach.Get()) {
 		std::cout << "mono_thread_attach not found" << std::endl;

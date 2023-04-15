@@ -20,7 +20,6 @@ namespace mono {
 				std::cerr << name << ": " << std::hex << this->ptr << std::dec << std::endl;
 				CloseHandle(h);
 			}
-			std::cout << "Calling " << name << std::endl;
 			return ptr;
 		}
 	};
@@ -44,4 +43,13 @@ namespace mono {
 
 	// class.h
 	WRAPPER(class_get);
+	WRAPPER(class_get_name);
+	WRAPPER(class_get_namespace);
+	WRAPPER(class_get_fields);
+
+	WRAPPER(field_get_type);
+	WRAPPER(type_get_type);
+	WRAPPER(field_get_offset);
+	WRAPPER(field_get_name);
+	WRAPPER(type_get_name);
 }
