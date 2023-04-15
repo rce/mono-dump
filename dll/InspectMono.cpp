@@ -30,30 +30,7 @@ void _cdecl push_assembly_to_vector(MonoAssembly* assembly, std::vector<MonoAsse
 	assemblies->push_back(assembly);
 }
 
-void InspectMono() {
-	// TODO Sometimes the module is mono.dll, sometimes mono-2.0-bdwgc. One could use something like
-	// CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId()) and GetProccAddress("mono_thread_attach")
-	// or something to figure out the proper module.
-	HandleCloser<HMODULE> h(
-		GetModuleHandle("mono-2.0-bdwgc.dll"),
-		[](HMODULE h) { CloseHandle(h); }
-	);
-
-	if (!h.Get()) {
-		std::cout << "Mono DLL not found" << std::endl;
-		return;
-	}
-
-	if (!GetProcAddress(h.Get(), "mono_thread_attach")) {
-		std::cout << "mono_thread_attach not found" << std::endl;
-		return;
-	}
-
-	std::cout << "Mono DLL location: " << std::hex << h.Get() << std::dec << std::endl;
-	if (GetProcAddress(h.Get(), "il2cpp_thread_attach")) {
-		std::cout << "Using il2cpp, no can do" << std::endl;
-		return;
-	}
+void DumpMono() {
 
 	MonoDomain* domain = mono::get_root_domain.Get()();
 	MonoThread* monothread = nullptr;
@@ -61,16 +38,6 @@ void InspectMono() {
 		monothread = mono::thread_attach.Get()(domain);
 	}
 
-	if (monothread != nullptr) {
-		std::cout << "detaching monothread" << std::endl;
-		if (mono::thread_detach.Get()) {
-			std::cerr << "mono_thread_detach(...)" << std::endl;
-			mono::thread_detach.Get()(monothread);
-		}
-		else {
-			std::cerr << "mono_thread_detach is not available" << std::endl;
-		}
-	}
 
 
 	std::vector<MonoAssembly*> assemblies;
@@ -87,8 +54,41 @@ void InspectMono() {
 		LOG(tdefcount);
 		for (int i = 0; i < tdefcount; i++)
 		{
-			// This crashes :(
-			// auto c = mono::class_get.Get()(image, MONO_TOKEN_TYPE_DEF | (i + 1));
+			auto c = mono::class_get.Get()(image, MONO_TOKEN_TYPE_DEF | (i + 1));
 		}
 	}
+
+	if (monothread && mono::thread_detach.Get()) {
+		mono::thread_detach.Get()(monothread);
+		monothread = nullptr;
+	}
 };
+
+
+void InspectMono() {
+	// TODO Sometimes the module is mono.dll, sometimes mono-2.0-bdwgc. One could use something like
+	// CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId()) and GetProccAddress("mono_thread_attach")
+	// or something to figure out the proper module.
+	HandleCloser<HMODULE> h(
+		GetModuleHandle(mono::ModuleName),
+		[](HMODULE h) { CloseHandle(h); }
+	);
+
+	if (!h.Get()) {
+		std::cout << "Mono DLL not found" << std::endl;
+		return;
+	}
+
+
+	if (!mono::thread_attach.Get()) {
+		std::cout << "mono_thread_attach not found" << std::endl;
+		return;
+	}
+
+	std::cout << "Mono DLL location: " << std::hex << h.Get() << std::dec << std::endl;
+	if (GetProcAddress(h.Get(), "il2cpp_thread_attach")) {
+		std::cout << "Using il2cpp, no can do" << std::endl;
+		return;
+	}
+	DumpMono();
+}

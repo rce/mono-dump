@@ -6,6 +6,7 @@
 #include <mono/metadata/tokentype.h>
 
 namespace mono {
+	auto ModuleName = "mono-2.0-bdwgc.dll";
 	template <typename Function>
 	class MonoFunction {
 		const std::string name;
@@ -14,11 +15,12 @@ namespace mono {
 		MonoFunction(const std::string& name) : name(name) {}
 		Function Get() {
 			if (ptr == nullptr) {
-				const HMODULE h = GetModuleHandle("mono-2.0-bdwgc.dll");
+				const HMODULE h = GetModuleHandle(ModuleName);
 				this->ptr = reinterpret_cast<Function>(GetProcAddress(h, name.c_str()));
 				std::cerr << name << ": " << std::hex << this->ptr << std::dec << std::endl;
 				CloseHandle(h);
 			}
+			std::cout << "Calling " << name << std::endl;
 			return ptr;
 		}
 	};
