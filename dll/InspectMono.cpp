@@ -60,13 +60,7 @@ std::vector<Field> get_fields(MonoClass* klass) {
 }
 
 void DumpMono() {
-	MonoDomain* domain = mono::get_root_domain.Get()();
-	MonoThread* monothread = nullptr;
-	if (mono::thread_attach.Get()) {
-		monothread = mono::thread_attach.Get()(domain);
-	}
-
-
+	mono::ThreadAttachment thread{};
 	std::ofstream output("monodump.txt");
 
 	for (auto& assembly : get_assemblies()) {
@@ -94,12 +88,6 @@ void DumpMono() {
 			output << "};\n\n";
 		}
 	}
-
-	if (monothread && mono::thread_detach.Get()) {
-		mono::thread_detach.Get()(monothread);
-		monothread = nullptr;
-	}
-
 	output.close();
 };
 

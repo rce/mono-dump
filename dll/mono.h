@@ -5,6 +5,8 @@
 #include <mono/metadata/class.h>
 #include <mono/metadata/tokentype.h>
 
+#include <iostream>
+
 namespace mono {
 	auto ModuleName = "mono-2.0-bdwgc.dll";
 	template <typename Function>
@@ -52,4 +54,32 @@ namespace mono {
 	WRAPPER(field_get_offset);
 	WRAPPER(field_get_name);
 	WRAPPER(type_get_name);
+
+
+
+	class ThreadAttachment {
+		MonoThread* monohread = nullptr;
+
+	public:
+		ThreadAttachment() {
+			if (mono::get_root_domain.Get()) {
+				std::cout << "mono_get_root_domain()" << std::endl;
+				auto domain = mono::get_root_domain.Get()();
+				if (mono::thread_attach.Get()) {
+					std::cout << "mono_thread_attach()" << std::endl;
+					this->monohread = mono::thread_attach.Get()(domain);
+				}
+			}
+		}
+
+		~ThreadAttachment() {
+			if (this->monohread != nullptr) {
+				if (mono::thread_detach.Get()) {
+					std::cout << "mono_thread_detach()" << std::endl;
+					mono::thread_detach.Get()(this->monohread);
+					this->monohread = nullptr;
+				}
+			}
+		}
+	};
 }
