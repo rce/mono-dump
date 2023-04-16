@@ -28,7 +28,7 @@ public:
 
 std::vector<MonoAssembly*> get_assemblies() {
 	std::vector<MonoAssembly*> assemblies;
-	mono::assembly_foreach.Get()([](void* assembly, void* user_data) {
+	mono::assembly_foreach([](void* assembly, void* user_data) {
 		auto vec = static_cast<std::vector<MonoAssembly*>*>(user_data);
 		vec->push_back(static_cast<MonoAssembly*>(assembly));
 	}, &assemblies);
@@ -46,12 +46,12 @@ std::vector<Field> get_fields(MonoClass* klass) {
 	void* iter = nullptr;
 	MonoClassField* field = nullptr;
 	do {
-		field = mono::class_get_fields.Get()(klass, &iter);
+		field = mono::class_get_fields(klass, &iter);
 		if (field) {
-			auto field_name = mono::field_get_name.Get()(field);
-			auto field_type = mono::field_get_type.Get()(field);
-			auto field_type_name = mono::type_get_name.Get()(field_type);
-			auto field_offset = mono::field_get_offset.Get()(field);
+			auto field_name = mono::field_get_name(field);
+			auto field_type = mono::field_get_type(field);
+			auto field_type_name = mono::type_get_name(field_type);
+			auto field_offset = mono::field_get_offset(field);
 			fields.push_back(Field{ field_type_name, field_name, field_offset });
 		}
 	} while (field);
@@ -64,20 +64,21 @@ void DumpMono() {
 	std::ofstream output("monodump.txt");
 
 	for (auto& assembly : get_assemblies()) {
-		auto image = mono::assembly_get_image.Get()(assembly);
-		auto image_name = std::string(mono::image_get_name.Get()(image));
+		auto image = mono::assembly_get_image(assembly);
+		auto image_name = std::string(mono::image_get_name(image));
 		LOG(image_name);
 
-		auto tdef = mono::image_get_table_info.Get()(image, MONO_TABLE_TYPEDEF);
+		auto tdef = mono::image_get_table_info(image, MONO_TABLE_TYPEDEF);
 		if (!tdef) continue;
 
-		auto tdefcount = mono::table_info_get_rows.Get()(tdef);
+		auto tdefcount = mono::table_info_get_rows(tdef);
 		LOG(tdefcount);
 		for (int i = 0; i < tdefcount; i++)
 		{
-			auto klass = mono::class_get.Get()(image, MONO_TOKEN_TYPE_DEF | (i + 1));
-			auto name = mono::class_get_name.Get()(klass);
-			auto ns = mono::class_get_namespace.Get()(klass);
+			auto klass = mono::class_get(image, MONO_TOKEN_TYPE_DEF | (i + 1));
+			auto name = mono::class_get_name(klass);
+			auto ns = mono::class_get_namespace(klass);
+
 			std::cout << ns << "." << name << "\n";
 			output << "// " << ns << "." << name << "\n";
 			output << "class " << name << " {\n";
@@ -106,7 +107,7 @@ void InspectMono() {
 		return;
 	}
 
-	if (!mono::thread_attach.Get()) {
+	if (!GetProcAddress(h.Get(), "mono_thread_attach")) {
 		std::cout << "mono_thread_attach not found" << std::endl;
 		return;
 	}

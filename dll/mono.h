@@ -24,6 +24,11 @@ namespace mono {
 			}
 			return ptr;
 		}
+
+		template <typename... Args>
+		decltype(auto) operator()(Args&& ...args) {
+			return this->Get()(std::forward<Args>(args)...);
+		}
 	};
 
 #define WRAPPER(func) MonoFunction<decltype(&::mono_##func)> func("mono_"#func)
@@ -62,23 +67,14 @@ namespace mono {
 
 	public:
 		ThreadAttachment() {
-			if (mono::get_root_domain.Get()) {
-				std::cout << "mono_get_root_domain()" << std::endl;
-				auto domain = mono::get_root_domain.Get()();
-				if (mono::thread_attach.Get()) {
-					std::cout << "mono_thread_attach()" << std::endl;
-					this->monohread = mono::thread_attach.Get()(domain);
-				}
-			}
+			auto domain = mono::get_root_domain();
+			this->monohread = mono::thread_attach(domain);
 		}
 
 		~ThreadAttachment() {
 			if (this->monohread != nullptr) {
-				if (mono::thread_detach.Get()) {
-					std::cout << "mono_thread_detach()" << std::endl;
-					mono::thread_detach.Get()(this->monohread);
-					this->monohread = nullptr;
-				}
+				mono::thread_detach(this->monohread);
+				this->monohread = nullptr;
 			}
 		}
 	};
