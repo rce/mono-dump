@@ -13,19 +13,6 @@
 #define PRINT_HEX(x) std::cout << #x << " " << std::hex << (x) << std::dec << std::endl
 #define LOG(x) std::cerr << #x << " == " << x << std::endl
 
-template <typename T>
-class HandleCloser {
-	T t;
-	typedef void (*Closer)(T t);
-	Closer closer;
-public:
-	HandleCloser(T t, Closer closer) : t(t), closer(closer) {}
-	~HandleCloser() {
-		closer(this->t);
-	}
-	T Get() { return this->t; }
-};
-
 std::vector<MonoAssembly*> get_assemblies() {
 	std::vector<MonoAssembly*> assemblies;
 	mono::assembly_foreach([](void* assembly, void* user_data) {
@@ -97,23 +84,20 @@ void InspectMono() {
 	// TODO Sometimes the module is mono.dll, sometimes mono-2.0-bdwgc. One could use something like
 	// CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId()) and GetProccAddress("mono_thread_attach")
 	// or something to figure out the proper module.
-	HandleCloser<HMODULE> h(
-		GetModuleHandle(mono::ModuleName),
-		[](HMODULE h) { CloseHandle(h); }
-	);
+	HMODULE hModule = GetModuleHandle(mono::ModuleName);
 
-	if (!h.Get()) {
+	if (!hModule) {
 		std::cout << "Mono DLL not found" << std::endl;
 		return;
 	}
 
-	if (!GetProcAddress(h.Get(), "mono_thread_attach")) {
+	if (!GetProcAddress(hModule, "mono_thread_attach")) {
 		std::cout << "mono_thread_attach not found" << std::endl;
 		return;
 	}
 
-	std::cout << "Mono DLL location: " << std::hex << h.Get() << std::dec << std::endl;
-	if (GetProcAddress(h.Get(), "il2cpp_thread_attach")) {
+	std::cout << "Mono DLL location: " << std::hex << hModule << std::dec << std::endl;
+	if (GetProcAddress(hModule, "il2cpp_thread_attach")) {
 		std::cout << "Using il2cpp, no can do" << std::endl;
 		return;
 	}
