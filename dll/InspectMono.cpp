@@ -26,13 +26,40 @@ public:
 	T Get() { return this->t; }
 };
 
-void _cdecl push_assembly_to_vector(MonoAssembly* assembly, std::vector<MonoAssembly*>* assemblies)
-{
-	assemblies->push_back(assembly);
+std::vector<MonoAssembly*> get_assemblies() {
+	std::vector<MonoAssembly*> assemblies;
+	mono::assembly_foreach.Get()([](void* assembly, void* user_data) {
+		auto vec = static_cast<std::vector<MonoAssembly*>*>(user_data);
+		vec->push_back(static_cast<MonoAssembly*>(assembly));
+	}, &assemblies);
+	return assemblies;
+}
+
+struct Field {
+	std::string type_name;
+	std::string field_name;
+	uint32_t offset;
+};
+
+std::vector<Field> get_fields(MonoClass* klass) {
+	std::vector<Field> fields;
+	void* iter = nullptr;
+	MonoClassField* field = nullptr;
+	do {
+		field = mono::class_get_fields.Get()(klass, &iter);
+		if (field) {
+			auto field_name = mono::field_get_name.Get()(field);
+			auto field_type = mono::field_get_type.Get()(field);
+			auto field_type_name = mono::type_get_name.Get()(field_type);
+			auto field_offset = mono::field_get_offset.Get()(field);
+			fields.push_back(Field{ field_type_name, field_name, field_offset });
+		}
+	} while (field);
+	std::sort(fields.begin(), fields.end(), [](Field a, Field b) { return a.offset < b.offset; });
+	return fields;
 }
 
 void DumpMono() {
-
 	MonoDomain* domain = mono::get_root_domain.Get()();
 	MonoThread* monothread = nullptr;
 	if (mono::thread_attach.Get()) {
@@ -42,9 +69,7 @@ void DumpMono() {
 
 	std::ofstream output("monodump.txt");
 
-	std::vector<MonoAssembly*> assemblies;
-	mono::assembly_foreach.Get()((MonoFunc)push_assembly_to_vector, &assemblies);
-	for (auto& assembly : assemblies) {
+	for (auto& assembly : get_assemblies()) {
 		auto image = mono::assembly_get_image.Get()(assembly);
 		auto image_name = std::string(mono::image_get_name.Get()(image));
 		LOG(image_name);
@@ -63,26 +88,7 @@ void DumpMono() {
 			output << "// " << ns << "." << name << "\n";
 			output << "class " << name << " {\n";
 
-			struct Field {
-				std::string type_name;
-				std::string field_name;
-				uint32_t offset;
-			};
-			std::vector<Field> fields;
-			void* iter = nullptr;
-			MonoClassField* field = nullptr;
-			do {
-				field = mono::class_get_fields.Get()(klass, &iter);
-				if (field) {
-					auto field_name = mono::field_get_name.Get()(field);
-					auto field_type = mono::field_get_type.Get()(field);
-					auto field_type_name = mono::type_get_name.Get()(field_type);
-					auto field_offset = mono::field_get_offset.Get()(field);
-					fields.push_back(Field{ field_type_name, field_name, field_offset });
-				}
-			} while (field);
-			std::sort(fields.begin(), fields.end(), [](Field a, Field b) { return a.offset < b.offset; });
-			for (auto& f : fields) {
+			for (auto& f : get_fields(klass)) {
 				output << "  " << f.type_name << " " << f.field_name << "; // Offset: 0x" << std::hex << f.offset << "\n";
 			}
 			output << "};\n\n";
