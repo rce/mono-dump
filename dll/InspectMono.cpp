@@ -50,7 +50,7 @@ void DumpMono() {
 	mono::ThreadAttachment thread{};
 	std::ofstream output("monodump.txt");
 
-	for (auto& assembly : get_assemblies()) {
+std::vector<Class> get_classes(MonoAssembly* assembly) {
 		auto image = mono::assembly_get_image(assembly);
 		auto image_name = std::string(mono::image_get_name(image));
 		LOG(image_name);
