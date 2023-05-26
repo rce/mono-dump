@@ -111,6 +111,7 @@ int main(int argc, char* argv[]) {
 		if (args.size() == 1) {
 			args.push_back("IdleDragons.exe");
 			args.push_back("..\\dll\\dll.dll");
+			//args.push_back("..\\idle-champions-example\\idle-champions-example.dll");
 		}
 #endif
 

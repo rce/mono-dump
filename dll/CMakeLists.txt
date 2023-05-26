@@ -4,7 +4,7 @@
 cmake_minimum_required (VERSION 3.8)
 
 # Add source to this project's executable.
-add_library (dll MODULE "dll.cpp" "InspectMono.cpp" "InspectMono.h" "mono.h" "InjectionLock.cpp" "InjectionLock.h")
+add_library (dll MODULE "dll.cpp" "InspectMono.cpp" "InspectMono.h" "../dll-common/mono.h" "../dll-common/mono.cpp" "../dll-common/common.h" "../dll-common/InjectionLock.cpp" "../dll-common/InjectionLock.h")
 SET(MONO_INCLUDE_DIRS "C:/Program Files/Mono/include/mono-2.0")
 target_include_directories(dll PUBLIC ${MONO_INCLUDE_DIRS})
 

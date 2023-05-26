@@ -6,9 +6,14 @@
 #include <mono/metadata/tokentype.h>
 
 #include <iostream>
+#include <type_traits>
+#include <optional>
+#include <vector>
+#include <Windows.h>
 
 namespace mono {
-	auto ModuleName = "mono-2.0-bdwgc.dll";
+	extern const char* ModuleName;
+
 	template <typename Function>
 	class MonoFunction {
 		const std::string name;
@@ -20,7 +25,6 @@ namespace mono {
 				const HMODULE h = GetModuleHandle(ModuleName);
 				this->ptr = reinterpret_cast<Function>(GetProcAddress(h, name.c_str()));
 				std::cerr << name << ": " << std::hex << this->ptr << std::dec << std::endl;
-				CloseHandle(h);
 			}
 			return ptr;
 		}
@@ -30,8 +34,8 @@ namespace mono {
 			return this->Get()(std::forward<Args>(args)...);
 		}
 	};
-
-#define WRAPPER(func) MonoFunction<decltype(&::mono_##func)> func("mono_"#func)
+	
+#define WRAPPER(func) extern MonoFunction<decltype(&::mono_##func)> func
 
 	WRAPPER(get_root_domain);
 
@@ -56,26 +60,19 @@ namespace mono {
 
 	WRAPPER(field_get_type);
 	WRAPPER(type_get_type);
+	//WRAPPER(field_get_parent);
 	WRAPPER(field_get_offset);
+	WRAPPER(field_get_flags);
 	WRAPPER(field_get_name);
 	WRAPPER(type_get_name);
-
-
+	WRAPPER(type_size);
+	WRAPPER(class_vtable);
 
 	class ThreadAttachment {
 		MonoThread* monohread = nullptr;
-
 	public:
-		ThreadAttachment() {
-			auto domain = mono::get_root_domain();
-			this->monohread = mono::thread_attach(domain);
-		}
-
-		~ThreadAttachment() {
-			if (this->monohread != nullptr) {
-				mono::thread_detach(this->monohread);
-				this->monohread = nullptr;
-			}
-		}
+		ThreadAttachment();
+		~ThreadAttachment();
 	};
+	std::vector<MonoAssembly*> get_assemblies();
 }
