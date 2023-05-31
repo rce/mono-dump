@@ -4,6 +4,7 @@
 #include "../dll-common/mono.h"
 #include "../dll-common/common.h"
 #include "../dll-common/InjectionLock.h"
+#undef far // Hack to make the dumped data structures compile as this is defined by Windows headers :)
 #include "monodump.h"
 
 std::vector<uintptr_t> ScanForValue(uint64_t value) {
@@ -69,7 +70,7 @@ bool CheckController(uintptr_t ptr, MonoDomain* domain, MonoClass* klass) {
 			std::cout << "not the same class" << std::endl;
 			return false;
 		}
-		auto controller = reinterpret_cast<CrusadersGameController*>(ptr);
+		auto controller = reinterpret_cast<monodump::CrusadersGame::GameScreen::CrusadersGameController*>(ptr);
 		if (controller->area->gameController == controller) {
 			if (*reinterpret_cast<uint8_t*>(ptr + 0x10C) == 0x00) {
 				return true;
@@ -82,7 +83,7 @@ bool CheckController(uintptr_t ptr, MonoDomain* domain, MonoClass* klass) {
 	return false;
 }
 
-CrusadersGameController* FindController() {
+monodump::CrusadersGame::GameScreen::CrusadersGameController* FindController() {
 	mono::ThreadAttachment thread{};
 	auto klass = FindClass("CrusadersGameController");
 	if (klass == nullptr) {
@@ -95,7 +96,7 @@ CrusadersGameController* FindController() {
 
 	for (auto result : ScanForValue(reinterpret_cast<uintptr_t>(vtable))) {
 		if (CheckController(result, domain, klass)) {
-			return reinterpret_cast<CrusadersGameController*>(result);
+			return reinterpret_cast<monodump::CrusadersGame::GameScreen::CrusadersGameController*>(result);
 		}
 	}
 	return nullptr;

@@ -65,11 +65,19 @@ std::string replace_all(std::string src, std::string old, std::string replacemen
 	return src;
 }
 
-
 void DumpMono() {
+	struct ParsedClass {
+		std::string ns, name;
+		MonoClass* klass;
+	};
+
 	mono::ThreadAttachment thread{};
 	std::ofstream output("monodump.h");
 
+	std::string namespace_prefix = "monodump::";
+
+	auto classes = std::vector<ParsedClass>{};
+	auto classmap = std::unordered_map<std::string, ParsedClass>{};
 	for (auto& assembly : mono::get_assemblies()) {
 		auto image = mono::assembly_get_image(assembly);
 		auto image_name = std::string(mono::image_get_name(image));
@@ -83,53 +91,56 @@ void DumpMono() {
 			auto ns = std::string(mono::class_get_namespace(klass));
 			if (!ns.starts_with("CrusadersGame.GameScreen")) continue;
 			CleanupIdentifier(name);
-			output << "struct " << name << "; \n";
+			ParsedClass c{ ns, name, klass };
+			classes.push_back(c);
+			classmap[c.ns + "." + c.name] = c;
 		}
-		for (int i = 0; i < tdefcount; i++)
-		{
-			auto klass = mono::class_get(image, MONO_TOKEN_TYPE_DEF | (i + 1));
-			auto name = std::string(mono::class_get_name(klass));
-			auto ns = std::string(mono::class_get_namespace(klass));
+	}
 
-			if (!ns.starts_with("CrusadersGame.GameScreen")) continue;
-			if (name == "ParalaxBackground") continue;
-			//std::cout << ns << "." << name << "\n";
-			output << "// " << ns << "." << name << "\n";
-			CleanupIdentifier(name);
-			output << "struct " << name << " {\n";
-			output << "  /*MonoVTable*/ void* vtable;\n";
-			output << "  /*MonoThreadsSync*/ void* synchronisation;\n";
-			for (auto& f : get_fields(klass)) {
-				std::string cpp_type;
-				auto simple_name = f.type_name.substr(f.type_name.rfind(".") + 1);
-				std::set<std::string> known_types = { "ActiveCampaignData", "CrusadersGameController", "Area", "AreaLevel" };
-				if (f.type_name == "System.Int32") {
-					cpp_type = "int32_t";
-				}
-				else if (known_types.contains(simple_name)) {
-					// todo parse any known type
-					//cpp_type = replace_all(f.type_name, ".", "::") + "*";
-					cpp_type = f.type_name + "*";
-					cpp_type = cpp_type.substr(cpp_type.rfind(".") + 1);
-				}
-				else if (f.type_name == "CrusadersGame.GameScreen.ActiveCampaignData") {
-					cpp_type = "ActiveCampaignData*";
-				} else {
-					cpp_type = f.type_size == sizeof(void*) ? "void*"
-						: f.type_size == sizeof(uint32_t) ? "uint32_t"
-						: f.type_size == sizeof(uint16_t) ? "uint16_t"
-						: f.type_size == sizeof(uint8_t) ? "uint8_t"
-						: "void*";
-				}
-				if (f.IsStatic()) output << "  // static ";
-				else output << "  ";
-
-				CleanupIdentifier(f.field_name);
-				f.field_name.erase(std::remove_if(f.field_name.begin(), f.field_name.end(), [](char c) { return c == '<' || c == '>'; }));
-				output << "/*" << f.type_name << "*/ " << cpp_type << " " << f.field_name << "; // Offset: 0x" << std::hex << f.offset << "\n";
+	// Dump forward declarations
+	for (auto& c : classes) {
+		std::cout << c.ns << "." << c.name << "\n";
+		auto klass = c.klass;
+		auto name = c.name;
+		auto ns = c.ns;
+		if (!ns.starts_with("CrusadersGame.GameScreen")) continue;
+		output << "namespace " << namespace_prefix << replace_all(ns, ".", "::") << " {\n";
+		output << "struct " << name << "; \n";
+		output << "}\n";
+	}
+	for (auto& c : classes) {
+		auto ns = c.ns;
+		auto name = c.name;
+		auto klass = c.klass;
+		if (!ns.starts_with("CrusadersGame.GameScreen")) continue;
+		output << "// " << ns << "." << name << "\n";
+		output << "struct " << namespace_prefix << replace_all(ns, ".", "::") << "::" << name << " {\n";
+		output << "  /*MonoVTable*/ void* vtable;\n";
+		output << "  /*MonoThreadsSync*/ void* synchronisation;\n";
+		for (auto& f : get_fields(klass)) {
+			std::string cpp_type;
+			if (f.type_name == "System.Int32") {
+				cpp_type = "int32_t";
 			}
-			output << "};\n\n";
+			else if (classmap.contains(f.type_name)) {
+				// todo parse any known type
+				cpp_type = namespace_prefix + replace_all(f.type_name, ".", "::") + "*";
+				std::cout << cpp_type << "\n";
+			} else {
+				cpp_type = f.type_size == sizeof(void*) ? "void*"
+					: f.type_size == sizeof(uint32_t) ? "uint32_t"
+					: f.type_size == sizeof(uint16_t) ? "uint16_t"
+					: f.type_size == sizeof(uint8_t) ? "uint8_t"
+					: "void*";
+			}
+			if (f.IsStatic()) output << "  // static ";
+			else output << "  ";
+
+			CleanupIdentifier(f.field_name);
+			f.field_name.erase(std::remove_if(f.field_name.begin(), f.field_name.end(), [](char c) { return c == '<' || c == '>'; }));
+			output << "/*" << f.type_name << "*/ " << cpp_type << " " << f.field_name << "; // Offset: 0x" << std::hex << f.offset << "\n";
 		}
+		output << "};\n\n";
 	}
 	output.close();
 };
